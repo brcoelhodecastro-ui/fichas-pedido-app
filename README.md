@@ -76,13 +76,51 @@ migração — não é só sintaxe, o isolamento entre papéis foi de fato testa
   maior que o saldo (com o rollback correto do código), staff tentando
   agir fora do próprio merchant.
 
+## Integração de pagamento (Asaas/Pix)
+
+- `src/lib/asaas/client.ts` (`server-only`) é a única forma de chamar a API
+  do Asaas no app; a lógica de fato mora em `http.ts`, sem o selo
+  `server-only`, justamente pra poder ser testada fora do Next.js.
+- Garantia central: **ninguém além do próprio webhook consegue marcar um
+  pedido como pago**. Um trigger (`orders_before_insert_force_pending`)
+  força todo pedido novo a nascer com `payment_status = 'pendente'` e
+  `status = 'aguardando_pagamento'`, não importa o que o cliente mande no
+  INSERT. Outro trigger (`orders_before_update_guard_payment`) ignora
+  qualquer tentativa de mudar `payment_status`/`paid_at`/`asaas_payment_id`
+  que não venha do `service_role` — ou seja, nem staff nem cliente
+  conseguem "confirmar" pagamento na mão, só o webhook do Asaas.
+- `src/app/api/webhooks/asaas/route.ts` recebe os eventos, confere o header
+  `asaas-access-token` contra `ASAAS_WEBHOOK_TOKEN`, e usa o client admin
+  (service role) pra achar o pedido pelo `asaas_payment_id` e aplicar a
+  mudança — decidida por uma função pura (`decideOrderUpdate`) que também
+  cuida de idempotência (webhook duplicado não faz nada) e não reabre um
+  pedido cancelado por causa de uma confirmação atrasada.
+- `src/lib/pagamentos/criar-cobranca-pedido.ts` é o helper que o módulo
+  Pedidos (etapa 6) vai chamar: cria/reaproveita o cliente no Asaas, gera
+  a cobrança Pix vinculada ao pedido (`externalReference`) e devolve o QR
+  code pra UI mostrar. Cliente precisa ter `cpf_cnpj` preenchido — o Asaas
+  exige isso pra criar a cobrança.
+- Testado sem precisar de credenciais reais: os triggers de guarda foram
+  validados contra Postgres local simulando o papel `service_role` de
+  verdade (com `BYPASSRLS`, como o Supabase configura); a lógica pura do
+  webhook (`mapAsaasEventToOutcome`/`decideOrderUpdate`) e a montagem das
+  requisições do client Asaas foram testadas com `fetch` mockado seguindo
+  o formato real da API. O que falta testar só dá com uma conta Asaas de
+  verdade: o handshake HTTP completo com a API e o disparo do webhook por
+  um pagamento Pix de fato.
+- Durante o teste de fumaça do endpoint achei e corrigi um bug real: o
+  `proxy.ts` (middleware) rodava em cima de `/api/webhooks/*` tentando
+  atualizar sessão de usuário — o que não existe numa chamada
+  servidor-a-servidor do Asaas — e quebrava toda chamada ao webhook com
+  500. O matcher agora exclui `api/webhooks`.
+
 ## Roadmap
 
 1. ✅ Setup do projeto Next.js + Supabase
 2. ✅ Schema completo do banco (merchants, staff, customers, wallets, wallet_transactions, order_items_catalog, orders, order_lines)
 3. ✅ Autenticação: cliente, staff, admin (+ políticas de RLS)
 4. ✅ Módulo Fichas: saldo, código temporário de débito, tela do staff (crédito manual de saldo, sem Pix)
-5. Integração de pagamento real (Asaas/Pix)
+5. ✅ Integração de pagamento real (Asaas/Pix)
 6. Módulo Pedidos: catálogo, montagem de pedido, pagamento obrigatório, código de retirada, painel do staff
 7. Teste end-to-end dos dois módulos juntos
 8. Multi-merchant real, PWA instalável
