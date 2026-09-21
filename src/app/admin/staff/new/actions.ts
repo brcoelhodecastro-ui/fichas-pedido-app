@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/require-role";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function createStaff(formData: FormData) {
@@ -18,27 +17,21 @@ export async function createStaff(formData: FormData) {
   }
 
   const admin = createAdminClient();
-  const { data, error: createUserError } = await admin.auth.admin.createUser({
+  // pending_staff vai em app_metadata (só o service role escreve lá) e é
+  // lido pelo trigger on_auth_user_created, que cria a linha em staff na
+  // MESMA transação do INSERT em auth.users — mesma lógica do /signup,
+  // evita a corrida e torna a criação atômica.
+  const { error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    app_metadata: {
+      pending_staff: { merchant_id: merchantId, login },
+    },
   });
 
-  if (createUserError || !data.user) {
-    redirect(
-      `/admin/staff/new?erro=${encodeURIComponent(createUserError?.message ?? "Falha ao criar usuário")}`,
-    );
-  }
-
-  const supabase = await createClient();
-  const { error: staffError } = await supabase.from("staff").insert({
-    merchant_id: merchantId,
-    user_id: data.user.id,
-    login,
-  });
-
-  if (staffError) {
-    redirect(`/admin/staff/new?erro=${encodeURIComponent(staffError.message)}`);
+  if (error) {
+    redirect(`/admin/staff/new?erro=${encodeURIComponent(error.message)}`);
   }
 
   redirect("/admin?sucesso=Staff criado");
