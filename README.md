@@ -20,10 +20,23 @@ npm install
 npm run dev
 ```
 
+## Banco de dados
+
+O schema vive em `supabase/migrations/`. Para aplicar num projeto Supabase real:
+
+```bash
+npx supabase link --project-ref <seu-project-ref>
+npx supabase db push
+```
+
+Todas as tabelas têm RLS habilitado, mas ainda sem políticas — o acesso hoje é
+só via service role no backend. As políticas por papel (cliente/staff/admin)
+entram na etapa 3.
+
 ## Roadmap
 
 1. ✅ Setup do projeto Next.js + Supabase
-2. Schema completo do banco (merchants, staff, customers, wallets, wallet_transactions, order_items_catalog, orders, order_lines)
+2. ✅ Schema completo do banco (merchants, staff, customers, wallets, wallet_transactions, order_items_catalog, orders, order_lines)
 3. Autenticação: cliente, staff, admin
 4. Módulo Fichas: saldo, código temporário de débito, tela do staff (crédito manual de saldo, sem Pix)
 5. Integração de pagamento real (Asaas/Pix)
