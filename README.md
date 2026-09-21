@@ -69,7 +69,9 @@ migração — não é só sintaxe, o isolamento entre papéis foi de fato testa
 - Staff credita saldo manualmente chamando `credit_wallet(login, valor)`:
   cria a wallet do cliente nesse merchant se ainda não existir, sempre
   escopado ao merchant do staff que chama (não dá pra creditar fora do
-  próprio estabelecimento). Ainda sem Pix — isso entra na etapa 5.
+  próprio estabelecimento). Continua sem Pix de propósito: crédito de
+  fichas é sempre manual no balcão, só o módulo Pedidos usa a integração
+  de pagamento (etapa 5).
 - As duas funções, o trigger de saldo e a política de único-código-ativo
   foram validados com os mesmos testes reais contra Postgres local:
   isolamento entre merchants, código expirado, código já usado, débito
@@ -114,6 +116,37 @@ migração — não é só sintaxe, o isolamento entre papéis foi de fato testa
   servidor-a-servidor do Asaas — e quebrava toda chamada ao webhook com
   500. O matcher agora exclui `api/webhooks`.
 
+## Módulo Pedidos
+
+- `/staff/catalogo`: staff cadastra itens do merchant (nome + preço).
+- `/cliente/pedidos/novo`: cliente escolhe o estabelecimento, monta o
+  pedido (quantidade por item) e informa CPF/CNPJ. O preço usado é sempre
+  o que está no catálogo no momento do checkout — nunca o que vier do
+  formulário — pra não dar pra adulterar valor pelo client.
+- Ao confirmar, o pedido é criado (nasce `aguardando_pagamento` por causa
+  do trigger da etapa 5) e a cobrança Pix é gerada na hora
+  (`criarCobrancaPixParaPedido`). O cliente cai direto na página do
+  pedido (`/cliente/pedidos/[id]`), que mostra o QR code e o
+  copia-e-cola — buscados de novo no Asaas a cada carregamento da
+  página, então continuam válidos mesmo se o cliente sair e voltar.
+- Quando o webhook confirma o pagamento, o pedido vira `recebido` e ganha
+  um código de retirada de 6 caracteres (`generatePickupCode`, alfabeto
+  sem 0/O/1/I/L pra evitar confusão) — ao contrário do código de débito
+  de fichas, esse não expira em 2 minutos: fica vinculado ao pedido até
+  ser retirado ou cancelado, porque o cliente pode demorar pra chegar no
+  balcão depois de pagar.
+- `/staff/pedidos`: staff acompanha os pedidos do próprio merchant, avança
+  o status (preparando → pronto, ou cancela) e confirma a retirada
+  digitando o código — sem função especial no banco pra isso, porque
+  diferente do débito de fichas não tem valor monetário em disputa: a
+  política de RLS já escopa a UPDATE ao merchant do staff, então um
+  código incorreto ou de outro merchant simplesmente não afeta nenhuma
+  linha.
+- Sem migração nova nessa etapa: toda a garantia de segurança (só o
+  webhook confirma pagamento, staff só mexe no próprio merchant) já
+  tinha sido validada contra Postgres nas etapas 3 e 5 — a etapa 6 só
+  usa o que já existia.
+
 ## Roadmap
 
 1. ✅ Setup do projeto Next.js + Supabase
@@ -121,6 +154,6 @@ migração — não é só sintaxe, o isolamento entre papéis foi de fato testa
 3. ✅ Autenticação: cliente, staff, admin (+ políticas de RLS)
 4. ✅ Módulo Fichas: saldo, código temporário de débito, tela do staff (crédito manual de saldo, sem Pix)
 5. ✅ Integração de pagamento real (Asaas/Pix)
-6. Módulo Pedidos: catálogo, montagem de pedido, pagamento obrigatório, código de retirada, painel do staff
+6. ✅ Módulo Pedidos: catálogo, montagem de pedido, pagamento obrigatório, código de retirada, painel do staff
 7. Teste end-to-end dos dois módulos juntos
 8. Multi-merchant real, PWA instalável

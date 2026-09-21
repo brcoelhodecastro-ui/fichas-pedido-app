@@ -23,7 +23,7 @@ export async function POST(request: Request) {
 
   const { data: order, error: fetchError } = await admin
     .from("orders")
-    .select("id, status, payment_status, paid_at")
+    .select("id, status, payment_status, paid_at, pickup_code")
     .eq("asaas_payment_id", paymentId)
     .maybeSingle();
 

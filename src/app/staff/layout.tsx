@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth/require-role";
 import { SignOutButton } from "@/components/sign-out-button";
 
@@ -11,7 +12,18 @@ export default async function StaffLayout({
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <header className="flex items-center justify-between border-b border-black/10 px-6 py-4 dark:border-white/10">
-        <span className="font-medium text-black dark:text-zinc-50">Área do staff</span>
+        <nav className="flex items-center gap-4">
+          <span className="font-medium text-black dark:text-zinc-50">Área do staff</span>
+          <Link href="/staff" className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">
+            Fichas
+          </Link>
+          <Link href="/staff/pedidos" className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">
+            Pedidos
+          </Link>
+          <Link href="/staff/catalogo" className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">
+            Catálogo
+          </Link>
+        </nav>
         <SignOutButton />
       </header>
       <main className="p-6">{children}</main>
