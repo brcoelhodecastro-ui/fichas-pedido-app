@@ -1,12 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createCustomer, createPixPayment, getPixQrCode } from "@/lib/asaas/client";
-
-type Resultado = {
-  qrCodeBase64: string;
-  copiaECola: string;
-  expiraEm: string;
-};
+import { createCustomer, createPixPayment } from "@/lib/asaas/client";
 
 /**
  * Cria a cobrança Pix no Asaas pro pedido e anexa o asaas_payment_id nele.
@@ -15,6 +9,10 @@ type Resultado = {
  * trigger). Usa o client admin porque anexar asaas_payment_id é um campo
  * de pagamento — só o service role tem permissão de escrever nele
  * (ver migração 20260921030000_pagamento_asaas.sql).
+ *
+ * Não devolve o QR code: a página do pedido (`/cliente/pedidos/[id]`) busca
+ * ele fresco no Asaas a cada carregamento, então não tem por que duplicar
+ * a chamada aqui.
  */
 export async function criarCobrancaPixParaPedido(input: {
   orderId: string;
@@ -23,7 +21,7 @@ export async function criarCobrancaPixParaPedido(input: {
   clienteNome: string;
   clienteCpfCnpj: string;
   clienteEmail?: string;
-}): Promise<Resultado> {
+}): Promise<void> {
   const admin = createAdminClient();
 
   const { data: customer, error: customerFetchError } = await admin
@@ -65,12 +63,4 @@ export async function criarCobrancaPixParaPedido(input: {
     .update({ asaas_payment_id: payment.id })
     .eq("id", input.orderId);
   if (attachError) throw new Error(attachError.message);
-
-  const qrCode = await getPixQrCode(payment.id);
-
-  return {
-    qrCodeBase64: qrCode.encodedImage,
-    copiaECola: qrCode.payload,
-    expiraEm: qrCode.expirationDate,
-  };
 }

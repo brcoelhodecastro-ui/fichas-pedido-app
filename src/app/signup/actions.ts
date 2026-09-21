@@ -28,7 +28,15 @@ export async function signUp(formData: FormData) {
     .insert({ user_id: data.user.id, login: login || null });
 
   if (customerError) {
-    redirect(`/signup?erro=${encodeURIComponent(customerError.message)}`);
+    // Desfaz o usuário de auth pra não deixar uma conta órfã (sem linha em
+    // customers, presa pra sempre já que o e-mail fica marcado como usado).
+    await admin.auth.admin.deleteUser(data.user.id);
+
+    const mensagem =
+      customerError.code === "23505"
+        ? "Esse nome de usuário já existe"
+        : customerError.message;
+    redirect(`/signup?erro=${encodeURIComponent(mensagem)}`);
   }
 
   if (data.session) {

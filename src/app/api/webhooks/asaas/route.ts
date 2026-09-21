@@ -1,10 +1,18 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mapAsaasEventToOutcome, decideOrderUpdate } from "@/lib/asaas/webhook";
 
+function tokensMatch(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
+}
+
 export async function POST(request: Request) {
   const token = request.headers.get("asaas-access-token");
-  if (!process.env.ASAAS_WEBHOOK_TOKEN || token !== process.env.ASAAS_WEBHOOK_TOKEN) {
+  const expected = process.env.ASAAS_WEBHOOK_TOKEN;
+  if (!expected || !token || !tokensMatch(token, expected)) {
     return NextResponse.json({ error: "não autorizado" }, { status: 401 });
   }
 

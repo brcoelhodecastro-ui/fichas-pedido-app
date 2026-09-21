@@ -142,10 +142,53 @@ migração — não é só sintaxe, o isolamento entre papéis foi de fato testa
   política de RLS já escopa a UPDATE ao merchant do staff, então um
   código incorreto ou de outro merchant simplesmente não afeta nenhuma
   linha.
-- Sem migração nova nessa etapa: toda a garantia de segurança (só o
-  webhook confirma pagamento, staff só mexe no próprio merchant) já
-  tinha sido validada contra Postgres nas etapas 3 e 5 — a etapa 6 só
-  usa o que já existia.
+- A etapa 6 em si não precisou de migração nova — toda a garantia de
+  segurança que ela usa (só o webhook confirma pagamento, staff só mexe
+  no próprio merchant) já tinha sido validada nas etapas 3 e 5. Mas
+  escrever essa UI foi o que expôs as lacunas corrigidas na revisão
+  abaixo (`orders_staff_update` liberava UPDATE em colunas que a UI do
+  staff nunca deveria tocar).
+
+## Revisão de segurança (pós-etapa 6)
+
+Antes de partir pro teste end-to-end, revisei o projeto inteiro de novo
+— schema, políticas de RLS e o app — e achei lacunas reais que a UI do
+Next.js nunca explora, mas que ficavam abertas pra qualquer sessão
+autenticada de staff/cliente com acesso direto à API REST do Supabase
+(fora do nosso app). Fechadas na migração
+`20260921040000_hardening_guardas.sql`, cada uma validada contra
+Postgres local (não só aplicada — testei que cada brecha realmente
+fecha e que o caminho legítimo continua funcionando):
+
+- **Crítico**: a política `wallets_staff_insert` (etapa 3) deixava staff
+  inserir uma wallet com **qualquer saldo**, contornando por completo a
+  função auditada `credit_wallet()` e o extrato de `wallet_transactions`
+  — bastava chamar a API do Supabase direto. Removida; nada do app
+  dependia dela, já que `credit_wallet()` é `SECURITY DEFINER` e nunca
+  passou por essa policy.
+- **Alto**: `customers.login` não tinha `unique`, mas `credit_wallet()`
+  busca o cliente por login sem `STRICT` — dois clientes com o mesmo
+  login podiam fazer o crédito cair silenciosamente no cliente errado.
+  Adicionado `unique (login)`.
+- **Médio**: `orders_staff_update` liberava UPDATE em qualquer coluna do
+  pedido (não só `status`) pro merchant do staff — dava pra sobrescrever
+  `total_reais`, `customer_id` ou o `pickup_code` de outro pedido via
+  API direta. Novo trigger restringe esses campos ao `service_role`.
+- **Médio**: um cliente conseguia sobrescrever o próprio
+  `asaas_customer_id` via API direta (o app nunca expõe esse campo pra
+  edição), o que podia atrelar cobranças futuras ao perfil Asaas errado.
+  Guardado do mesmo jeito.
+- **Baixo**: pedido podia nascer com `asaas_payment_id` escolhido pelo
+  cliente (podia colidir com um pagamento real, ainda que IDs do Asaas
+  sejam difíceis de adivinhar); e o código de débito de fichas podia
+  nascer com validade escolhida pelo cliente em vez dos 2 minutos
+  padrão. Ambos forçados agora, ignorando o que vier no INSERT.
+- Também troquei a comparação do token do webhook por
+  `crypto.timingSafeEqual` (a anterior comparava string por `!==`,
+  vulnerável a timing attack em teoria) e corrigi um caminho de conta
+  órfã no `/signup`: se a criação da linha em `customers` falhar (ex:
+  login duplicado), o usuário de auth recém-criado agora é desfeito, em
+  vez de ficar uma conta travada com e-mail já "usado" mas sem `customers`.
 
 ## Roadmap
 
