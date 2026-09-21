@@ -19,7 +19,17 @@ handshake HTTP completo com o Asaas.
 
 ### 1.2 Aplicar as migrações
 
-Com o projeto rodando localmente (`npm install` primeiro):
+**Forma mais simples: SQL Editor.** No dashboard do Supabase, vá em
+Database → SQL Editor → New query, cole o conteúdo dos arquivos de
+`supabase/migrations/` **em ordem** (pelo nome — o prefixo numérico já
+garante a ordem certa) e rode. Dá pra colar um por um, ou concatenar
+todos num arquivo só e rodar de uma vez.
+
+**Alternativa: Supabase CLI**, se você tiver o projeto rodando no seu
+próprio terminal (não funciona pedindo pra uma sessão de IA sem acesso
+de rede direto ao seu banco fazer isso por você — só conexão HTTPS sai
+daqui, então `supabase db push` de dentro de uma sessão como essa nunca
+vai conseguir conectar no Postgres):
 
 ```bash
 npx supabase login
@@ -29,12 +39,7 @@ npx supabase db push
 
 O `<project-ref>` está na URL do dashboard do projeto
 (`https://supabase.com/dashboard/project/<project-ref>`) ou em
-Settings → General. O `db push` vai aplicar as 5 migrações de
-`supabase/migrations/` em ordem.
-
-Se preferir não usar o CLI, dá pra colar o conteúdo de cada arquivo de
-`supabase/migrations/` (em ordem, pelo nome) no SQL Editor do dashboard
-e rodar um por um.
+Settings → General.
 
 ### 1.3 Pegar as credenciais e preencher o `.env.local`
 
