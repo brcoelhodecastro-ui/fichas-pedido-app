@@ -198,5 +198,6 @@ fecha e que o caminho legítimo continua funcionando):
 4. ✅ Módulo Fichas: saldo, código temporário de débito, tela do staff (crédito manual de saldo, sem Pix)
 5. ✅ Integração de pagamento real (Asaas/Pix)
 6. ✅ Módulo Pedidos: catálogo, montagem de pedido, pagamento obrigatório, código de retirada, painel do staff
-7. Teste end-to-end dos dois módulos juntos
+7. 🔄 Teste end-to-end dos dois módulos juntos — guia de setup (Supabase +
+   Asaas sandbox) e roteiro de teste manual em [`TESTING.md`](./TESTING.md)
 8. Multi-merchant real, PWA instalável
