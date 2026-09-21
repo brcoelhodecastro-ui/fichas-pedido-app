@@ -57,12 +57,31 @@ sua própria wallet, staff só vê dados do seu merchant, débito que deixaria o
 saldo negativo é bloqueado, etc.) contra um Postgres local antes de subir a
 migração — não é só sintaxe, o isolamento entre papéis foi de fato testado.
 
+## Módulo Fichas
+
+- Cliente gera um código de 6 dígitos válido por 2 minutos (`wallet_debit_codes`)
+  e mostra pro staff no balcão.
+- Staff debita chamando a função `redeem_wallet_debit_code(code, valor)`: o
+  código é reivindicado de forma atômica (evita duas caixas debitando o
+  mesmo código ao mesmo tempo), só funciona pro merchant do staff que chama,
+  e se o débito deixaria o saldo negativo a operação inteira é revertida —
+  o código continua válido pra tentar de novo com um valor menor.
+- Staff credita saldo manualmente chamando `credit_wallet(login, valor)`:
+  cria a wallet do cliente nesse merchant se ainda não existir, sempre
+  escopado ao merchant do staff que chama (não dá pra creditar fora do
+  próprio estabelecimento). Ainda sem Pix — isso entra na etapa 5.
+- As duas funções, o trigger de saldo e a política de único-código-ativo
+  foram validados com os mesmos testes reais contra Postgres local:
+  isolamento entre merchants, código expirado, código já usado, débito
+  maior que o saldo (com o rollback correto do código), staff tentando
+  agir fora do próprio merchant.
+
 ## Roadmap
 
 1. ✅ Setup do projeto Next.js + Supabase
 2. ✅ Schema completo do banco (merchants, staff, customers, wallets, wallet_transactions, order_items_catalog, orders, order_lines)
 3. ✅ Autenticação: cliente, staff, admin (+ políticas de RLS)
-4. Módulo Fichas: saldo, código temporário de débito, tela do staff (crédito manual de saldo, sem Pix)
+4. ✅ Módulo Fichas: saldo, código temporário de débito, tela do staff (crédito manual de saldo, sem Pix)
 5. Integração de pagamento real (Asaas/Pix)
 6. Módulo Pedidos: catálogo, montagem de pedido, pagamento obrigatório, código de retirada, painel do staff
 7. Teste end-to-end dos dois módulos juntos
