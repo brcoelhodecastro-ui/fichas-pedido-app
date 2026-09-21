@@ -29,15 +29,39 @@ npx supabase link --project-ref <seu-project-ref>
 npx supabase db push
 ```
 
-Todas as tabelas têm RLS habilitado, mas ainda sem políticas — o acesso hoje é
-só via service role no backend. As políticas por papel (cliente/staff/admin)
-entram na etapa 3.
+Todas as tabelas têm RLS habilitado. As políticas por papel (cliente/staff/admin)
+foram adicionadas na etapa 3, junto com o trigger que aplica crédito/débito
+em `wallet_transactions` ao saldo da wallet.
+
+## Autenticação e papéis
+
+- **customer**: se autocadastra em `/signup`. A linha em `customers` é criada
+  automaticamente no cadastro.
+- **staff**: só é criado por um admin, em `/admin/staff/new` (cria o usuário
+  de auth + a linha em `staff`, vinculada a um merchant).
+- **admin**: não tem self-signup. O primeiro admin precisa ser promovido
+  manualmente rodando isso no SQL Editor do Supabase (com o usuário já
+  cadastrado via `/signup` ou pelo dashboard de Auth):
+
+  ```sql
+  update auth.users
+  set raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}'::jsonb
+  where email = 'seu-email@exemplo.com';
+  ```
+
+  Depois de promovido, esse usuário passa a acessar `/admin` e pode cadastrar
+  merchants e staff pela UI.
+
+As políticas de RLS foram validadas rodando os cenários reais (cliente só vê
+sua própria wallet, staff só vê dados do seu merchant, débito que deixaria o
+saldo negativo é bloqueado, etc.) contra um Postgres local antes de subir a
+migração — não é só sintaxe, o isolamento entre papéis foi de fato testado.
 
 ## Roadmap
 
 1. ✅ Setup do projeto Next.js + Supabase
 2. ✅ Schema completo do banco (merchants, staff, customers, wallets, wallet_transactions, order_items_catalog, orders, order_lines)
-3. Autenticação: cliente, staff, admin
+3. ✅ Autenticação: cliente, staff, admin (+ políticas de RLS)
 4. Módulo Fichas: saldo, código temporário de débito, tela do staff (crédito manual de saldo, sem Pix)
 5. Integração de pagamento real (Asaas/Pix)
 6. Módulo Pedidos: catálogo, montagem de pedido, pagamento obrigatório, código de retirada, painel do staff
